@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Baum-Welch Algorithm — Interactive Guide</title>
+
+<!-- External libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;700;800&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+
+<!-- Our files -->
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="container">
+
+<!-- HERO -->
+<div class="hero">
+  <h1>Baum-Welch Algorithm<br>for Hidden Markov Models</h1>
+</div>
+
+<!-- SECTION 1: WHAT IS AN HMM -->
+<div class="section-gap">
+  <div class="section-label">
+    <div class="section-num">1</div>
+    <div class="section-title">What is a Hidden Markov Model?</div>
+  </div>
+
+  <div class="card card-accent-top">
+    <p style="font-size:15px;color:var(--soft);margin-bottom:18px;">
+      Imagine you're trying to understand a system, but you can only see <em>indirect clues</em> — not the system itself.
+      That's exactly what a <strong style="color:#fff">Hidden Markov Model (HMM)</strong> is designed for.
+    </p>
+    <div class="analogy-grid">
+      <div class="analogy-card">
+        <div class="analogy-icon">🌦️</div>
+        <h4>The Weather Room</h4>
+        <p>You're inside a windowless room. You can only tell the weather by whether people bring umbrellas. The <span class="hl-cyan">actual weather</span> is hidden — what you observe is people's behaviour.</p>
+      </div>
+      <div class="analogy-card">
+        <div class="analogy-icon">🎰</div>
+        <h4>The Casino Dice</h4>
+        <p>A casino secretly switches between a fair die and a loaded one. You see the <span class="hl-cyan">numbers rolled</span>, but never which die is active. The die choice is the hidden state.</p>
+      </div>
+      <div class="analogy-card">
+        <div class="analogy-icon">🧠</div>
+        <h4>Speech Recognition</h4>
+        <p>When you speak, your mouth produces <span class="hl-cyan">sound waves</span> (observable). The words and phonemes in your brain are hidden — HMMs help decode them from audio alone.</p>
+      </div>
+    </div>
+    <div class="plain-box">
+      <div class="plain-label">💡 In Plain English</div>
+      <p>An HMM says: there are hidden "states" changing over time (sunny / rainy). At each moment, the current state produces an observable "output" (umbrella / no umbrella). We never see the states — only the outputs. Our job is to figure out the states from the outputs.</p>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title" style="color:var(--accent3)"><span class="dot" style="color:var(--accent3)"></span> The Three Things We Learn (λ = A, B, π)</div>
+      <div class="glossary-item" style="padding-top:0">
+        <div class="glossary-term">π (pi)<br><small style="color:var(--muted)">Initial probs</small></div>
+        <div class="glossary-def"><span class="hl-cyan">Where do we start?</span> — The probability that the system begins in each hidden state. E.g., "70% chance it starts sunny."</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">A matrix<br><small style="color:var(--muted)">Transitions</small></div>
+        <div class="glossary-def"><span class="hl-pink">How do states change?</span> — "If sunny today, 80% chance sunny tomorrow, 20% chance rainy." These are state-to-state probabilities over time.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">B matrix<br><small style="color:var(--muted)">Emissions</small></div>
+        <div class="glossary-def"><span class="hl-green">What does each state produce?</span> — "When rainy, 90% chance of seeing umbrella." These link hidden states to observable outputs.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="color:var(--pink)"><span class="dot" style="color:var(--pink)"></span> The Central Problem</div>
+      <p style="font-size:15px;color:var(--soft);margin-bottom:14px;">
+        Given only a sequence of <strong style="color:#fff">observations</strong> (what we can see), can we figure out the <strong style="color:#fff">best possible</strong> values for A, B, and π?
+      </p>
+      <div class="tip-box">
+        <div class="tip-label">⚡ This is the Baum-Welch problem!</div>
+        <p>We don't know the hidden states. We don't know A, B, or π. All we have is a sequence of observations — and Baum-Welch will <strong>learn the entire model from that alone.</strong></p>
+      </div>
+      <div style="margin-top:14px;padding:14px;background:var(--surface2);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);text-align:center;line-height:2.2">
+        Input: O = [o₁, o₂, ..., oT] &nbsp;(observations only)<br>
+        <span style="color:var(--accent2)">↓ &nbsp; Baum-Welch &nbsp; ↓</span><br>
+        Output: best λ = (A, B, π) that explains O
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- SECTION 2: HOW IT WORKS -->
+<div class="section-gap">
+  <div class="section-label">
+    <div class="section-num">2</div>
+    <div class="section-title">How the Baum-Welch Algorithm Works — Step by Step</div>
+  </div>
+
+  <div class="card card-accent-top" style="margin-bottom:20px;">
+    <p style="font-size:15px;color:var(--soft);margin-bottom:16px;">
+      Baum-Welch is an <strong style="color:#fff">Expectation-Maximization (EM)</strong> algorithm — it repeatedly improves its guesses for A, B, and π.
+      Think of it like tuning a radio: keep adjusting until the signal is clearest.
+    </p>
+    <div class="tip-box" style="border-color:rgba(124,58,237,0.3);background:rgba(124,58,237,0.06);border-left-color:var(--accent);">
+      <div class="tip-label" style="color:var(--accent)">🔁 The Big Idea (EM Loop)</div>
+      <p style="color:#c4b5fd;">Start with random guesses for A, B, π → compute how well they explain your observations → adjust the matrices to make the observations more likely → repeat until improvement stops.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="dot"></span> Step-by-Step Walkthrough</div>
+    <div class="step-flow">
+
+      <div class="step-item">
+        <div class="step-icon">🎲</div>
+        <div class="step-content">
+          <h4>Step 0 — Random Initialization</h4>
+          <p>We randomly set starting values for A (transitions), B (emissions), and π (initial). These will be wrong — that's totally fine. The algorithm will correct them through iterations.</p>
+          <div class="formula-chip">λ⁰ = (A⁰, B⁰, π⁰) ← random, but each row sums to 1</div>
+        </div>
+      </div>
+
+      <div class="step-item">
+        <div class="step-icon">➡️</div>
+        <div class="step-content">
+          <h4>Step 1 — Forward Pass (compute α, "alpha")</h4>
+          <p>For each time step t, compute <strong style="color:var(--accent2)">α<sub>t</sub>(i)</strong> — the probability of seeing observations o₁, o₂, …, o<sub>t</sub> AND being in hidden state i right now. We sweep left to right through the sequence.</p>
+          <div class="formula-chip">α₁(i) = π<sub>i</sub> · b<sub>i</sub>(o₁)</div>
+          <span style="display:inline-block;width:8px"></span>
+          <div class="formula-chip">α<sub>t+1</sub>(j) = [Σ<sub>i</sub> α<sub>t</sub>(i) · a<sub>ij</sub>] · b<sub>j</sub>(o<sub>t+1</sub>)</div>
+          <div class="plain-box" style="margin-top:12px">
+            <div class="plain-label">💡 Plain English</div>
+            <p>"What is the probability that I followed this exact path of hidden states and produced these observations up to now?" We track this for every possible state at each time step.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-item">
+        <div class="step-icon">⬅️</div>
+        <div class="step-content">
+          <h4>Step 2 — Backward Pass (compute β, "beta")</h4>
+          <p>Symmetrically, compute <strong style="color:var(--accent2)">β<sub>t</sub>(i)</strong> — the probability of seeing future observations o<sub>t+1</sub>, …, o<sub>T</sub> given that we're currently in state i at time t. We sweep right to left.</p>
+          <div class="formula-chip">β<sub>T</sub>(i) = 1 &nbsp;(nothing left to observe)</div>
+          <span style="display:inline-block;width:8px"></span>
+          <div class="formula-chip">β<sub>t</sub>(i) = Σ<sub>j</sub> a<sub>ij</sub> · b<sub>j</sub>(o<sub>t+1</sub>) · β<sub>t+1</sub>(j)</div>
+          <div class="plain-box" style="margin-top:12px">
+            <div class="plain-label">💡 Plain English</div>
+            <p>"Given I'm in state i right now, how well do the rest of the observations 'make sense' from here?" Combining forward α and backward β gives us full context from both directions.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-item">
+        <div class="step-icon">🔗</div>
+        <div class="step-content">
+          <h4>Step 3 — E-Step: Compute γ (gamma) and ξ (xi)</h4>
+          <p>By multiplying forward and backward probabilities, we estimate the probability of being in each state at each time — even though we never directly see those states!</p>
+          <div class="formula-chip">γ<sub>t</sub>(i) = α<sub>t</sub>(i) · β<sub>t</sub>(i) / P(O|λ) &nbsp; ← "soft" state assignment</div>
+          <br>
+          <div class="formula-chip" style="margin-top:6px">ξ<sub>t</sub>(i,j) = α<sub>t</sub>(i) · a<sub>ij</sub> · b<sub>j</sub>(o<sub>t+1</sub>) · β<sub>t+1</sub>(j) / P(O|λ)</div>
+          <div class="plain-box" style="margin-top:12px">
+            <div class="plain-label">💡 Plain English</div>
+            <p><strong>γ<sub>t</sub>(i)</strong> answers: "How confident are we that the system was in state i at time t?" — a soft probability between 0 and 1.<br><br><strong>ξ<sub>t</sub>(i,j)</strong> answers: "How likely was the transition from state i → state j between time t and t+1?"</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-item">
+        <div class="step-icon">🔄</div>
+        <div class="step-content">
+          <h4>Step 4 — M-Step: Re-estimate A, B, π</h4>
+          <p>Use γ and ξ to compute better estimates. Each update is guaranteed to increase (or maintain) P(O|λ) — this is what makes EM so powerful.</p>
+          <div class="formula-chip">π̂<sub>i</sub> = γ₁(i) &nbsp; (use first-step state probs as new start probs)</div>
+          <br>
+          <div class="formula-chip" style="margin-top:6px">â<sub>ij</sub> = Σ<sub>t</sub> ξ<sub>t</sub>(i,j) / Σ<sub>t</sub> γ<sub>t</sub>(i)</div>
+          <br>
+          <div class="formula-chip" style="margin-top:6px">b̂<sub>i</sub>(k) = Σ<sub>t : oₜ=k</sub> γ<sub>t</sub>(i) / Σ<sub>t</sub> γ<sub>t</sub>(i)</div>
+          <div class="plain-box" style="margin-top:12px">
+            <div class="plain-label">💡 Plain English — It's just counting!</div>
+            <p>For the <strong>transition matrix A</strong>: "Out of all the times I was in state i, how often did I go to state j next?"<br><br>For the <strong>emission matrix B</strong>: "Out of all the times I was in state i, how often did I produce symbol k?"</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-item">
+        <div class="step-icon">✅</div>
+        <div class="step-content">
+          <h4>Step 5 — Convergence Check</h4>
+          <p>Compute log P(O|λ) — how well the updated model explains the observations. If it barely changed (less than threshold ε), the algorithm has converged. Otherwise, go back to Step 1 with the new λ.</p>
+          <div class="formula-chip">Converged if |log P(O|λ)_new − log P(O|λ)_old| &lt; ε</div>
+          <div class="tip-box">
+            <div class="tip-label">⚠️ Why log probability?</div>
+            <p>Probabilities of long sequences get astronomically small (like 10⁻⁵⁰⁰). Taking the log converts these into manageable negative numbers and prevents the computer from rounding everything to zero.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- SECTION 3: TRY IT -->
+<div class="section-gap">
+  <div class="section-label">
+    <div class="section-num">3</div>
+    <div class="section-title">Try It Yourself — Live Interactive Demo</div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;background:rgba(6,182,212,0.04);border-color:rgba(6,182,212,0.2);">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <span style="font-size:32px;">🌤️</span>
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-weight:700;color:#fff;margin-bottom:4px;font-size:16px;">Recommended: Start with the Weather Example</div>
+        <div style="font-size:13px;color:var(--soft);">Uses <span class="hl-cyan">3 observation symbols</span> (0 = Sunny, 1 = Cloudy, 2 = Rainy) with <span class="hl-pink">2 hidden states</span> (think "Summer pattern" vs "Winter pattern"). Hit the button below to pre-fill everything, then click Run.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card card-accent-top">
+      <div class="card-title"><span class="dot"></span> Configure & Run</div>
+
+      <div class="form-row">
+        <label>OBSERVATION SEQUENCE — space or comma separated integers</label>
+        <input type="text" id="obs-input" value="0 1 0 2 1 0 1 2 0 1 1 0 2 1 0 0 1 2">
+        <div style="font-size:11px;color:var(--muted);margin-top:5px;">Each number = one observed symbol. These are what the model <em>can</em> see. E.g., 0=sunny, 1=cloudy, 2=rainy.</div>
+      </div>
+      <div class="form-row">
+        <label>NUMBER OF HIDDEN STATES (N)</label>
+        <input type="number" id="n-states" value="2" min="2" max="6">
+        <div style="font-size:11px;color:var(--muted);margin-top:5px;">How many underlying hidden states to model. Start with 2 — it's the simplest case.</div>
+      </div>
+      <div class="form-row">
+        <label>OBSERVATION SYMBOLS (M) — leave blank to auto-detect</label>
+        <input type="number" id="m-symbols" placeholder="auto-detect" min="2" max="10">
+        <div style="font-size:11px;color:var(--muted);margin-top:5px;">The number of distinct symbols in your sequence. Auto-detected if left blank.</div>
+      </div>
+      <div class="form-row">
+        <label>MAX ITERATIONS — stop after this many EM rounds</label>
+        <input type="number" id="max-iter" value="100" min="5" max="500">
+      </div>
+      <div class="form-row">
+        <label>CONVERGENCE THRESHOLD ε — stop when per-iteration improvement drops below this</label>
+        <input type="text" id="epsilon" value="1e-6">
+      </div>
+      <div class="form-row">
+        <label>RANDOM SEED — change this to try different random starting points</label>
+        <input type="number" id="seed" value="42">
+        <div style="font-size:11px;color:var(--muted);margin-top:5px;">Different seeds → different initializations → possibly different final models. Try a few!</div>
+      </div>
+      <button onclick="runBaumWelch()">▶ Run Baum-Welch Algorithm</button>
+      <button class="btn-secondary" onclick="loadExample()" style="margin-top:8px;">🌤️ Load Weather Example</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="color:var(--accent3)"><span class="dot" style="color:var(--accent3)"></span> What Each Output Means</div>
+      <div class="glossary-item" style="padding-top:0">
+        <div class="glossary-term">log P(O|λ)</div>
+        <div class="glossary-def">How well the learned model explains your observations. Always negative — a value <strong style="color:#fff">closer to 0 is better</strong>. Watch it rise toward 0 as the algorithm improves.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Iterations</div>
+        <div class="glossary-def">How many EM rounds ran before convergence. Fewer = found a good solution quickly. More = the landscape was harder to navigate.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Transition A</div>
+        <div class="glossary-def">Row i → col j = probability of moving from hidden state i to state j. Each row sums to exactly 1.0. High diagonal values mean states tend to stay stable.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Emission B</div>
+        <div class="glossary-def">Row i → col k = probability of producing symbol k when in hidden state i. Each row sums to 1.0. Darker cells = the state "prefers" that symbol.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Initial π</div>
+        <div class="glossary-def">Probability of starting in each hidden state at t=0. All values sum to 1.0.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">γ (gamma) chart</div>
+        <div class="glossary-def">For each time step, how confident are we that the system was in each state? Lines near 1.0 = high confidence. Crossing lines = uncertainty.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RESULTS (hidden until algo runs) -->
+<div id="results-header" style="display:none" class="section-gap">
+  <hr class="divider" style="margin-top:0">
+  <div class="section-label">
+    <div class="section-num">4</div>
+    <div class="section-title">Results</div>
+  </div>
+
+  <div class="card card-accent-green" style="margin-bottom:20px;">
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="stat-loglik">—</div>
+        <div class="stat-label">log P(O|λ) — final</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-iters">—</div>
+        <div class="stat-label">Iterations taken</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-converged">—</div>
+        <div class="stat-label">Status</div>
+      </div>
+    </div>
+    <div id="log-output" class="log-box"></div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+  </div>
+</div>
+
+<div id="conv-card" style="display:none" class="section-gap">
+  <div class="card card-accent-top">
+    <div class="card-title"><span class="dot"></span> Convergence — log P(O|λ) over Iterations</div>
+    <canvas id="conv-chart" height="75"></canvas>
+    <div class="explain-box">
+      <div class="explain-label">📊 How to Read This Chart</div>
+      <p>The Y-axis shows <strong>log P(O|λ)</strong> — how well the model explains your observations (higher / less negative = better). Watch it rise steeply at first (big improvements) then flatten as it converges. A smooth curve with a flat tail = healthy convergence. If it jumps erratically, try a different seed or reduce N.</p>
+    </div>
+  </div>
+</div>
+
+<div id="matrix-section" style="display:none" class="section-gap">
+  <div class="grid-3">
+    <div class="card card-accent-top">
+      <div class="card-title"><span class="dot"></span> π — Initial Distribution</div>
+      <div id="pi-table"></div>
+      <div class="explain-box" style="margin-top:12px">
+        <div class="explain-label">What this means</div>
+        <p>Probability that the sequence <em>starts</em> in each hidden state. Darker = higher probability. All cells sum to 1.0.</p>
+      </div>
+    </div>
+    <div class="card card-accent-top">
+      <div class="card-title"><span class="dot"></span> A — Transition Matrix</div>
+      <div class="matrix-wrap" id="A-table"></div>
+      <div class="explain-box" style="margin-top:12px">
+        <div class="explain-label">What this means</div>
+        <p>Each row = "given I'm in this state now", each cell = probability of going to that state next. High diagonal = states tend to persist. Each row sums to 1.0.</p>
+      </div>
+    </div>
+    <div class="card card-accent-top">
+      <div class="card-title"><span class="dot"></span> B — Emission Matrix</div>
+      <div class="matrix-wrap" id="B-table"></div>
+      <div class="explain-box" style="margin-top:12px">
+        <div class="explain-label">What this means</div>
+        <p>Each row = a hidden state, each cell = probability of producing that symbol. Darker cells = the state "likes" that observation. Each row sums to 1.0.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="diagram-section" style="display:none" class="section-gap">
+  <div class="card card-accent-top" id="diagram-card">
+    <div class="card-title"><span class="dot"></span> State Transition Diagram
+      <div style="margin-left:auto;display:flex;gap:6px;">
+        <button id="btn-save-svg" class="std-ctrl-btn" title="Save SVG" style="width:28px;height:28px;font-size:12px;">↓SVG</button>
+        <button id="btn-save-png" class="std-ctrl-btn" title="Save PNG" style="width:28px;height:28px;font-size:12px;">↓PNG</button>
+      </div>
+    </div>
+
+    <!-- Replay controls -->
+    <div class="std-controls" style="margin-bottom:12px;">
+      <button id="btn-first"  class="std-ctrl-btn" disabled>⏮</button>
+      <button id="btn-back"   class="std-ctrl-btn" disabled>⏪</button>
+      <button id="btn-play"   class="std-ctrl-btn" disabled>▶</button>
+      <button id="btn-fwd"    class="std-ctrl-btn" disabled>⏩</button>
+      <button id="btn-last"   class="std-ctrl-btn" disabled>⏭</button>
+      <select id="speed-select" class="std-speed-select">
+        <option value="0.25">0.25×</option>
+        <option value="0.5">0.5×</option>
+        <option value="1" selected>1×</option>
+        <option value="2">2×</option>
+        <option value="5">5×</option>
+      </select>
+      <input id="std-timeline" class="std-timeline" type="range" min="0" max="0" value="0">
+      <span id="iter-label" class="std-iter-label">No data</span>
+      <button id="btn-particles"    class="std-ctrl-btn active" title="Toggle particles">✦</button>
+      <button id="btn-decongestion" class="std-ctrl-btn" title="Toggle filtered/all mode">⫶</button>
+      <span id="decongestion-label" class="std-mode-label">All</span>
+    </div>
+
+    <!-- The actual diagram canvas -->
+    <div id="std-canvas" class="std-canvas"></div>
+
+    <!-- Inspector panel (click a node to open) -->
+    <div id="std-inspector" class="std-inspector"></div>
+
+    <div class="explain-box" style="margin-top:14px">
+      <div class="explain-label">How to Read This Diagram</div>
+      <p>
+        <strong>Top row (START)</strong> → dashed arrows show π (initial state probabilities).<br>
+        <strong>Middle row (HIDDEN STATES)</strong> → curved arcs between nodes show transition probabilities A. Arcs above = forward, below = reverse. Self-loops = probability of staying in same state.<br>
+        <strong>Bottom row (OBSERVATIONS)</strong> → sigmoid curves show emission probabilities B — how likely each state produces each symbol.<br>
+        <strong>Thickness &amp; brightness</strong> = probability strength. Click any state node to inspect exact values. Use ▶ to replay how matrices evolved across iterations.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div id="prob-section" style="display:none" class="section-gap">
+  <div class="grid-2">
+    <div class="card card-accent-top">
+      <div class="card-title"><span class="dot"></span> γ — State Probabilities Over Time</div>
+      <canvas id="gamma-chart" height="140"></canvas>
+      <div class="explain-box">
+        <div class="explain-label">What you're seeing</div>
+        <p>At each time step, what's the probability that the system was in each hidden state? Lines near 1.0 = the algorithm is very confident about which state we were in. When lines cross, there's genuine uncertainty — both states seem equally plausible at that moment.</p>
+      </div>
+    </div>
+    <div class="card card-accent-top">
+      <div class="card-title"><span class="dot"></span> α — Forward Probabilities (log scale)</div>
+      <canvas id="alpha-chart" height="140"></canvas>
+      <div class="explain-box">
+        <div class="explain-label">What you're seeing</div>
+        <p>Log-scaled forward probabilities (α) for each hidden state across time. Values become more negative as the sequence grows longer — that's normal (joint probability of a long sequence is very small). The <em>relative gap</em> between lines matters more than absolute values: a larger gap = higher confidence in one state over another.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- SECTION 5: GLOSSARY -->
+<div class="section-gap">
+  <div class="section-label">
+    <div class="section-num">5</div>
+    <div class="section-title">Quick Reference & Common Questions</div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title" style="color:var(--accent3)"><span class="dot" style="color:var(--accent3)"></span> Glossary of Terms</div>
+      <div class="glossary-item" style="padding-top:0">
+        <div class="glossary-term">HMM</div>
+        <div class="glossary-def">Hidden Markov Model. A probabilistic model where the real underlying states are hidden and we only observe noisy outputs.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Markov Property</div>
+        <div class="glossary-def">The future depends only on the present, not the history. "Where I go next depends only on where I am now — not where I've been."</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">EM Algorithm</div>
+        <div class="glossary-def">Expectation-Maximization: estimate the missing data (E-step), then improve parameters to fit (M-step). Guaranteed never to get worse — only better or the same.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Stochastic Matrix</div>
+        <div class="glossary-def">A matrix where every row sums to 1.0. All our probability matrices (A, B, π) are stochastic — they represent valid probability distributions.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Log-likelihood</div>
+        <div class="glossary-def">The logarithm of P(O|λ). Always negative; values closer to 0 mean a better fitting model. We maximize this during training.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Convergence</div>
+        <div class="glossary-def">When the per-iteration improvement falls below ε, we've converged — further iterations won't meaningfully change the model.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="color:var(--green)"><span class="dot" style="color:var(--green)"></span> Common Questions Answered</div>
+
+      <div class="plain-box" style="margin-bottom:12px">
+        <div class="plain-label">❓ Why do we use logarithms?</div>
+        <p>Multiplying many small probabilities (0.3 × 0.2 × 0.5 × … for 100 time steps) gives a number too tiny for computers to store (like 10⁻⁵⁰⁰). Log turns those multiplications into additions, keeping numbers in a manageable range.</p>
+      </div>
+      <div class="plain-box" style="margin-bottom:12px">
+        <div class="plain-label">❓ How many hidden states should I choose?</div>
+        <p>Start with 2. Add more states if the log-likelihood is still very low after convergence. Too many states → the model memorizes the data (overfitting) and loses generalizability.</p>
+      </div>
+      <div class="plain-box" style="margin-bottom:12px">
+        <div class="plain-label">❓ Why does the result change with the seed?</div>
+        <p>Baum-Welch can get stuck in different local optima depending on the random starting point. Try multiple seeds and pick the model with the highest (least negative) log-likelihood.</p>
+      </div>
+      <div class="plain-box">
+        <div class="plain-label">❓ What are the limitations?</div>
+        <p>Baum-Welch only guarantees a <em>local</em> maximum of P(O|λ), not the global best. It also requires you to specify N (number of hidden states) and M (number of observation symbols) in advance — these aren't learned automatically.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<!-- Load order matters: library → core → app -->
+<script src="diagram-lib.js"></script>
+<script src="hmm-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
